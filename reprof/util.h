@@ -146,6 +146,7 @@ const float aa_features[21][8] = {
     //Y
     { 18,  0.822, 0.796,0.356, 0,    0,    0.5,      1}
 };
+void fprintf_header(FILE *fp);
 
 
 int number (const char aa) {
@@ -194,7 +195,7 @@ float_array_2d * in_sequence_bit(size_t length) {
 
 char * parse_fasta(const char * fasta_file) {
     kseq_t *seq; 
-    char * ret_seq;
+    char * ret_seq=NULL;
     gzFile fp;
     fp = gzopen(fasta_file, "r");  
 	seq = kseq_init(fp);
@@ -513,24 +514,8 @@ float_array_list * create_inputs( features_list * features, size_t from, size_t 
 void write_output(char * file_output, float_array_2d * sec_prediction, float_array_2d * acc_prediction,char * sequ,size_t chain_length){
     
     FILE *fp = fopen(file_output, "w");
-    
-    fprintf(fp,"##General\n");
-    fprintf(fp,"# No\t: Residue number (beginning with 1)\n");
-    fprintf(fp,"# AA\t: Amino acid\n");
-    fprintf(fp,"##Secondary structure\n");
-    fprintf(fp,"# PHEL\t: Secondary structure (H = Helix, E = Extended/Sheet, L = Loop)\n");
-    fprintf(fp,"# RI_S\t: Reliability index (0 to 9 (most reliable))\n");
-    fprintf(fp,"# pH\t: Probability helix (0 to 1)\n");
-    fprintf(fp,"# pE\t: Probability extended (0 to 1)\n");
-    fprintf(fp,"# pL\t: Probability loop (0 to 1)\n");
-    fprintf(fp,"##Solvent accessibility\n");
-    fprintf(fp,"# PACC\t: Absolute\n");
-    fprintf(fp,"# PREL\t: Relative\n");
-    fprintf(fp,"# P10\t: Relative in 10 states (0 - 9 (most exposed))\n");
-    fprintf(fp,"# RI_A\t: Reliability index (0 to 9 (most reliable))\n");
-    fprintf(fp,"# Pbe\t: Two states (b = buried, e = exposed)\n");
-    fprintf(fp,"# Pbie\t: Three states (b = buried, i = intermediate, e = exposed)\n");
-    fprintf(fp,"# \n");
+    fprintf_long_header(fp);
+
     fprintf(fp,"No\tAA\tPHEL\tRI_S\tpH\tpE\tpL\tPACC\tPREL\tP10\tRI_A\tPbe\tPbie\n");
     for(size_t i=0; i < chain_length; i++) {
         size_t no = i + 1;
@@ -553,6 +538,88 @@ void write_output(char * file_output, float_array_2d * sec_prediction, float_arr
     }
     fclose(fp);
 }
+
+
+ write_extra_out(FILE *fp, float_array_2d * sec_prediction, float_array_2d * acc_prediction,char * sequ, int i){   
+   
+        int no = i + 1;
+        char aa = sequ[i];
+        
+        char PHEL = sec_three2one(sec_prediction->data[i],sec_prediction->col_size);
+        int RI_S = reliability(sec_prediction->data[i],sec_prediction->col_size);
+        char PREL = acc_ten2rel(acc_prediction->data[i],acc_prediction->col_size);
+        int PACC = acc_rel2abs(PREL, aa);
+        char P10 = max_pos(acc_prediction->data[i],acc_prediction->col_size);
+        char RI_A = reliability(acc_prediction->data[i],acc_prediction->col_size);
+        int pH = floor(sec_prediction->data[i][0] * 100);
+        int pE = floor(sec_prediction->data[i][1] * 100);
+        int pL = floor(sec_prediction->data[i][2] * 100);
+        char Pbe = acc_rel2two(PREL);
+        char Pbie = acc_rel2three(PREL);
+        fprintf(fp, "%u\t%c\t%c\t%u\t%u\t%u\t%u\t%u\t%u\t%u\t%u\t%c\t%c\n",
+                no, aa, PHEL, RI_S, pH, pE, pL, PACC, PREL, P10, RI_A, Pbe, Pbie);
+        //        say OUT join "\t", $No, $AA, $PHEL, $RI_S, $pH, $pE, $pL, $PACC, $PREL, $P10, $RI_A, $Pbe, $Pbie;    
+   
+}
+
+
+void write_short_output(char * file_output, float_array_2d * sec_prediction, float_array_2d * acc_prediction,char * sequ,size_t chain_length, int short_start ,int short_end){
+    
+    FILE *fp = fopen(file_output, "w");
+    
+  //  fprintf_header(fp);		// we dont really need the long version of the human readable header here 
+    fprintf_short_header(fp);
+    //fprintf(fp,"No\tAA\tPHEL\tRI_S\tpH\tpE\tpL\tPACC\tPREL\tP10\tRI_A\tPbe\tPbie\n");
+   short_end= short_end<chain_length?short_end:chain_length;
+  short_start= (short_start>0)?short_start:0;
+    for(size_t i=short_start; i < short_end  ; i++) {
+     // write_extra_out(fp,  sec_prediction,  acc_prediction,  i);
+      
+        int no = i + 1;
+        char aa = sequ[i];
+        
+        char PHEL = sec_three2one(sec_prediction->data[i],sec_prediction->col_size);
+        int RI_S = reliability(sec_prediction->data[i],sec_prediction->col_size);
+        char PREL = acc_ten2rel(acc_prediction->data[i],acc_prediction->col_size);
+        int PACC = acc_rel2abs(PREL, aa);
+        char P10 = max_pos(acc_prediction->data[i],acc_prediction->col_size);
+        char RI_A = reliability(acc_prediction->data[i],acc_prediction->col_size);
+        int pH = floor(sec_prediction->data[i][0] * 100);
+        int pE = floor(sec_prediction->data[i][1] * 100);
+        int pL = floor(sec_prediction->data[i][2] * 100);
+        char Pbe = acc_rel2two(PREL);
+        char Pbie = acc_rel2three(PREL);
+        fprintf(fp, "%u\t%c\t%c\t%u\t%u\t%u\t%u\t%u\t%u\t%u\t%u\t%c\t%c\n",
+                no, aa, PHEL, RI_S, pH, pE, pL, PACC, PREL, P10, RI_A, Pbe, Pbie);
+        //        say OUT join "\t", $No, $AA, $PHEL, $RI_S, $pH, $pE, $pL, $PACC, $PREL, $P10, $RI_A, $Pbe, $Pbie;
+    }
+    fclose(fp);
+}
+
+void fprintf_short_header(FILE *fp){
+   fprintf(fp,"No\tAA\tPHEL\tRI_S\tpH\tpE\tpL\tPACC\tPREL\tP10\tRI_A\tPbe\tPbie\n");
+}
+
+void fprintf_long_header(FILE *fp){
+    fprintf(fp,"##General\n");
+    fprintf(fp,"# No\t: Residue number (beginning with 1)\n");
+    fprintf(fp,"# AA\t: Amino acid\n");
+    fprintf(fp,"##Secondary structure\n");
+    fprintf(fp,"# PHEL\t: Secondary structure (H = Helix, E = Extended/Sheet, L = Loop)\n");
+    fprintf(fp,"# RI_S\t: Reliability index (0 to 9 (most reliable))\n");
+    fprintf(fp,"# pH\t: Probability helix (0 to 1)\n");
+    fprintf(fp,"# pE\t: Probability extended (0 to 1)\n");
+    fprintf(fp,"# pL\t: Probability loop (0 to 1)\n");
+    fprintf(fp,"##Solvent accessibility\n");
+    fprintf(fp,"# PACC\t: Absolute\n");
+    fprintf(fp,"# PREL\t: Relative\n");
+    fprintf(fp,"# P10\t: Relative in 10 states (0 - 9 (most exposed))\n");
+    fprintf(fp,"# RI_A\t: Reliability index (0 to 9 (most reliable))\n");
+    fprintf(fp,"# Pbe\t: Two states (b = buried, e = exposed)\n");
+    fprintf(fp,"# Pbie\t: Three states (b = buried, i = intermediate, e = exposed)\n");
+    fprintf(fp,"# \n");
+    }
+
 
 float sum_arr(float * myArray, size_t size)
 {
@@ -595,6 +662,19 @@ float_array_2d *  jury(float_array_2d * uu, float_array_2d *  ub, float_array_2d
     return result;
 }
 
-
+#include <sys/stat.h>
+/*
+ * Check if a file exist using stat() function
+ * return 1 if the file exist otherwise return 0
+ */
+int f_exists(const char* filename){
+    struct stat buffer;
+    return ( stat(filename,&buffer) ==0 );
+//    int exist = stat(filename,&buffer);
+//    if(exist == 0)
+//        return 1;
+//    else // -1
+//        return 0;
+}
 
 #endif
