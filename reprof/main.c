@@ -47,6 +47,7 @@ char * pwd;
 char * in_file=NULL;
 char * out_file=NULL;
 char * sequ=NULL;
+FILE *EXTRA=NULL;
 const char * pathToModel="/var/tmp/mamut/Mprof/"; //→not in userspace   "/usr/share/madprof/";
 const char * pathToOut=NULL;							// «mr   // use the NULL not 0
 int hasPsiMat=0;
@@ -60,6 +61,10 @@ int snap_20=20;				// «mr   // make 19 non native:0 or 20 including  the native
 int dbug=0;
 int short_output=0;
 int quiet=0;
+int extra=1;		/// extra output combining only the muts→ mprof scores A→A gets EXACTLY the same score as in the original output
+/**do we need the normal long output in that many files? */
+int normal =1;	
+
 
 struct fann **models=NULL;
 features_list **features=NULL;
@@ -245,10 +250,11 @@ void Precompute(){
 void do_the_expensive_stuff(){
   if(quiet<1)    printf("run2: the really heavy stuff:\n");								//»mr dbug
     if(sec_ori==NULL||a_ori==NULL||u_ori==NULL||b_ori==NULL)exit( 3);
-    char extra_out[256];
-    snprintf(extra_out, sizeof extra_out, "%s%s", pathToOut,"_EXTRA_");
-    FILE *EXTRA = fopen(extra_out, "w");
-    
+    if(extra){
+      char extra_out[256];
+      snprintf(extra_out, sizeof extra_out, "%s%s", pathToOut,"_EXTRA_");
+      EXTRA = fopen(extra_out, "w");
+    }
    for(int pos = 0; pos < chain_length; pos++){
        char aa_ori = sequ[pos];
        size_t seq_from = max(((pos - 1) - 1 * max_window + 1), 0);
@@ -342,15 +348,16 @@ void do_the_expensive_stuff(){
 
     if(quiet<1)         printf( "%s%c%u%c         \r", "Done: ",aa_ori,pos+1,revers_aa[mut]);
 	 //   printf( "%s%c%u%c\n", "Done: ",aa_ori,pos+1,revers_aa[mut]);
-	   
-	   
+	 /** use switch "+n" to shut down many files output */  
+	 if(normal){  
            snprintf(pathToSaveResult, sizeof pathToSaveResult, "%s_%c%u%c", pathToOut,aa_ori,pos+1,revers_aa[mut]);
 	   
 	   if(short_output>0){ write_short_output(pathToSaveResult, sec, a, sequ, chain_length,struc_from,struc_to );} 			//← mr: added short oouput option only the changed part+- winsize will be put to file, faster writing here and reading in snap"!
 	    else           write_output(pathToSaveResult, sec, a, sequ, chain_length);
            //free run
-	    
-	    write_extra_out(EXTRA,  sec, a, sequ, pos );
+	 }
+	  /** use switch "+x" to shut down extra file output, "-x" is default writes single output file in additon to others contains ALL prediction for faster parsing */  
+	    if(extra)write_extra_out(EXTRA,  sec, a, sequ, pos );
 	    
            free_float_array_2d_ptr_only(a_tmp);
            free_float_array_2d_ptr_only(u_tmp);
@@ -370,7 +377,7 @@ void do_the_expensive_stuff(){
 
        sequ[pos] = aa_ori;		/// restore original sequence
    }
-   fclose(EXTRA);
+  if(extra) fclose(EXTRA);
 }
 
  void help(){
@@ -401,8 +408,8 @@ void do_the_expensive_stuff(){
     printf("    \tmadprof -d | --debug : give additionl dbug output \n");
     printf("    \tmadprof -s20 | --snap_20 : use 20 mutations even thow A->A probably wont make any diffrence \n"); 
     printf("    \tmadprof -s | --short : ommit unchanged portions in output faster filewrite/read/parse  \n");
-       printf("    \tmadprof -q | --quiet :  none output for clusterworkers\n");
-    
+    printf("    \tmadprof -q | --quiet :  none output on stdout for clusterworkers \n");
+    printf("    \tmadprof -x | --extra :  additional output file containting ALL mutations  M1A gets one line where No=1 and AA=A , M1C another line No=1, AA=C \n");
     exit( 0);
 }
 
@@ -423,12 +430,20 @@ float_array_2d * create_and_run_from_to(int Model_num ,float_array_2d * pre_outp
 	    
 	  for (int i=1; i<argc; i++){
 	      /// switches;
-	      if(argv[i][0]!='-' ) continue;
+	      if(argv[i][0]=='-' ) {
 	      if(!strcmp(argv[i],"-h")|| !strcmp(argv[i],"--help")) {help();  return -1;}			// »mr // added: --help
 	      if(!strcmp(argv[i],"--snap_20")|| !strcmp(argv[i],"-s20")) {set_snap();}			// »mr // added: --help
 	      if(!strcmp(argv[i],"--dbug")|| !strcmp(argv[i],"-d")) {dbug++;}			// »mr // added: --help
 	      if(!strcmp(argv[i],"--short")|| !strcmp(argv[i],"-s")) {short_output++;}
 	      if(!strcmp(argv[i],"--quiet")|| !strcmp(argv[i],"-q")) {quiet++;}
+	      if(!strcmp(argv[i],"--extra")|| !strcmp(argv[i],"-x")) {extra++;}
+	      }
+	      if(argv[i][0]=='+' ) {
+		if(!strcmp(argv[i],"+q")) {quiet--;}
+		if(!strcmp(argv[i],"+x")) {extra--;}
+		if(!strcmp(argv[i],"+n")) {normal--;}
+		
+	      }
 	      /// for all other args the i may NOT reach argc -1 
 	    }
 	    
